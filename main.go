@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"time"
+
+	"awesomeProject/internal/store"
 )
 
 type Issue struct {
@@ -25,24 +27,43 @@ type Label struct {
 func main() {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
-		_, err := fmt.Fprintln(os.Stderr, "please set GITHUB_TOKEN")
-		if err != nil {
-			return
-		}
+		fmt.Fprintln(os.Stderr, "please set GITHUB_TOKEN")
 		os.Exit(1)
 	}
+
+	// A context carries deadlines/cancellation down the call stack. context.Background()
+	// is the empty root; later we'll derive timeouts and shutdown signals from it.
+	ctx := context.Background()
+
+	// Connect to Postgres up front so we fail immediately if the DB is unreachable.
+	pool, err := store.ConnectDB(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "database error:", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+	fmt.Println("connected to Postgres ✓")
+
+	// Wire the pool into our data-access layer. We name the variable `st` (not
+	// `store`) so it doesn't shadow the imported package `store`.
+	st := store.NewStore(pool)
+
+	if err := st.AddRepo(ctx, "golang", "go"); err != nil {
+		fmt.Fprintln(os.Stderr, "AddRepo failed:", err)
+	}
+
+	userID, err := st.AddUser(ctx, "maxa.spb6@gmail.com")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "AddUser failed:", err)
+	}
+	fmt.Println("added user:", userID)
 
 	repo := "Chevrotain/chevrotain"
 	label := "good first issue"
 
-	// A context carries deadlines/cancellation down the call stack. context.Background()
-	// is the empty root; later we'll derive timeouts and shutdown signals from it.
-	issues, err := fetchIssues(context.Background(), token, repo, label)
+	issues, err := fetchIssues(ctx, token, repo, label)
 	if err != nil {
-		_, err2 := fmt.Fprintln(os.Stderr, "error:", err)
-		if err2 != nil {
-			return
-		}
+		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 
