@@ -1,0 +1,13 @@
+# Binaries
+/awesomeProject
+*.exe
+
+# Env / secrets — never commit your GITHUB_TOKEN
+.env
+*.env
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
