@@ -19,3 +19,27 @@ func (s *Store) GetUser(ctx context.Context, email string) (int64, error) {
 		email).Scan(&id)
 	return id, err
 }
+
+func (s *Store) SubscribersOf(ctx context.Context, owner, name string) ([]string, error) {
+	id, err := s.GetRepo(ctx, owner, name)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT u.email
+  FROM subscriptions s
+  JOIN users u ON u.id = s.user_id
+  WHERE s.repo_id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	var emails []string
+	for rows.Next() {
+		var email string
+		err = rows.Scan(&email)
+		if err != nil {
+			return nil, err
+		}
+		emails = append(emails, email)
+	}
+	return emails, rows.Err()
+}
