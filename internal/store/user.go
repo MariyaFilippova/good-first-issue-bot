@@ -12,14 +12,6 @@ func (s *Store) UpsertGitHubUser(ctx context.Context, githubID int64, email stri
 	return id, err
 }
 
-func (s *Store) GetUser(ctx context.Context, email string) (int64, error) {
-	var id int64
-	err := s.pool.QueryRow(ctx,
-		`SELECT id FROM users WHERE email = $1`,
-		email).Scan(&id)
-	return id, err
-}
-
 func (s *Store) AlreadyNotified(ctx context.Context, userID, githubIssueID int64) (bool, error) {
 	var exists bool
 	err := s.pool.QueryRow(ctx,
