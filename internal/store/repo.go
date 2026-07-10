@@ -45,6 +45,17 @@ func (s *Store) ListRepos(ctx context.Context) ([]Repo, error) {
 	return repos, rows.Err()
 }
 
+func (s *Store) UpdateRepoAfterPoll(ctx context.Context, repoID int64, etag *string, highWater *time.Time) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE repos
+		SET etag = COALESCE($2, etag),
+		    high_water = COALESCE($3, high_water),
+		    last_polled_at = now(),
+		    next_poll_at = now() + poll_interval
+		WHERE id = $1`, repoID, etag, highWater)
+	return err
+}
+
 func (s *Store) DueRepos(ctx context.Context, limit int) ([]Repo, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, owner, name, etag, high_water
