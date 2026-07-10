@@ -1,14 +1,18 @@
 package notify
 
 import (
+	"awesomeProject/internal/auth"
 	"awesomeProject/internal/store"
 	"context"
 	"encoding/json"
 	"net/http"
 )
 
-func Serve(ct context.Context, s *store.Store) error {
+func Serve(ct context.Context, s *store.Store, a *auth.Auth) error {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /auth/login", a.HandleLogin)
+	mux.HandleFunc("GET /auth/callback", a.HandleCallback)
 
 	mux.HandleFunc("POST /subscribe", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

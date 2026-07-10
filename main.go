@@ -2,58 +2,94 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
+	"time"
 
+	"awesomeProject/internal/auth"
 	"awesomeProject/internal/github"
+	"awesomeProject/internal/notify"
 	"awesomeProject/internal/store"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load a .env file into the environment if present. Ignore the error: in
+	// production there's no .env — the vars are set by the platform instead.
+	_ = godotenv.Load()
+
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
-		fmt.Fprintln(os.Stderr, "please set GITHUB_TOKEN")
-		os.Exit(1)
+		log.Fatal("please set GITHUB_TOKEN")
 	}
 
-	// A context carries deadlines/cancellation down the call stack. context.Background()
-	// is the empty root; later we'll derive timeouts and shutdown signals from it.
 	ctx := context.Background()
-
-	// Connect to Postgres up front so we fail immediately if the DB is unreachable.
 	pool, err := store.ConnectDB(ctx)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "database error:", err)
-		os.Exit(1)
+		log.Fatal("database error: ", err)
 	}
 	defer pool.Close()
-	fmt.Println("connected to Postgres ✓")
 
-	// Our two dependencies: the data-access layer and the GitHub client.
+	clientID := os.Getenv("GITHUB_CLIENT_ID")
+	clientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
+	if clientID == "" || clientSecret == "" {
+		log.Fatal("set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET")
+	}
+
 	st := store.NewStore(pool)
 	gh := github.NewClient(token)
+	a := auth.New(st, clientID, clientSecret, "http://localhost:8080/auth/callback")
 
-	if err := st.AddRepo(ctx, "golang", "go"); err != nil {
-		fmt.Fprintln(os.Stderr, "AddRepo failed:", err)
-	}
-	if _, err := st.AddUser(ctx, "maxa.spb6@gmail.com"); err != nil {
-		fmt.Fprintln(os.Stderr, "AddUser failed:", err)
-	}
+	go pollLoop(ctx, st, gh)
 
-	owner, name, label := "Chevrotain", "chevrotain", "good first issue"
-	issues, err := gh.FetchIssues(ctx, owner, name, label)
+	log.Println("server listening on :8080")
+	if err := notify.Serve(ctx, st, a); err != nil {
+		log.Fatal("server: ", err)
+	}
+}
+
+// pollLoop runs one poll pass every 30 seconds, forever.
+func pollLoop(ctx context.Context, st *store.Store, gh *github.Client) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		poll(ctx, st, gh)
+		<-ticker.C
+	}
+}
+
+func poll(ctx context.Context, st *store.Store, gh *github.Client) {
+	due, err := st.DueRepos(ctx, 100)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "fetch issues:", err)
-		os.Exit(1)
+		log.Println("DueRepos:", err)
+		return
 	}
 
-	count := 0
-	for _, is := range issues {
-		if is.PullRequest != nil {
-			continue // skip PRs that snuck into the issues list
+	for _, repo := range due {
+		res, err := gh.FetchIssues(ctx, repo.Owner, repo.Name, "good first issue", repo.ETag)
+		if err != nil {
+			log.Println("FetchIssues:", err)
+			continue
 		}
-		count++
-		fmt.Printf("#%-6d %s\n         %s\n", is.Number, is.Title, is.HTMLURL)
+
+		if res.NotModified {
+			if err := st.UpdateRepoAfterPoll(ctx, repo.ID, nil); err != nil {
+				log.Println("UpdateRepoAfterPoll:", err)
+			}
+			continue
+		}
+
+		if err := notify.Notify(ctx, st, repo, res.Issues); err != nil {
+			log.Println("Notify:", err)
+		}
+
+		var newETag *string
+		if res.ETag != "" {
+			newETag = &res.ETag
+		}
+		if err := st.UpdateRepoAfterPoll(ctx, repo.ID, newETag); err != nil {
+			log.Println("UpdateRepoAfterPoll:", err)
+		}
 	}
-	fmt.Printf("\n%d open %q issues in %s/%s\n", count, label, owner, name)
 }
