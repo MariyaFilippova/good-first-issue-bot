@@ -37,6 +37,34 @@ func (s *Store) Unsubscribe(ctx context.Context, email, owner, name string) erro
 	return err
 }
 
+type Subscriber struct {
+	ID    int64
+	Email string
+}
+
+func (s *Store) ListSubscribersForRepo(ctx context.Context, repoId int64) ([]Subscriber, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id, u.email
+		FROM subscriptions s
+		JOIN users u ON u.id = s.user_id
+		WHERE s.repo_id = $1`, repoId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []Subscriber
+	for rows.Next() {
+		var sub Subscriber
+		if err := rows.Scan(&sub.ID, &sub.Email); err != nil {
+			return nil, err
+		}
+		subs = append(subs, sub)
+	}
+
+	return subs, rows.Err()
+}
+
 func (s *Store) ListSubscriptions(ctx context.Context, userId int64) ([]Subscription, error) {
 	rows, err := s.pool.Query(ctx, `SELECT user_id, repo_id FROM subscriptions WHERE user_id = $1`, userId)
 	if err != nil {

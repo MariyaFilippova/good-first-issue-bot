@@ -20,26 +20,13 @@ func (s *Store) GetUser(ctx context.Context, email string) (int64, error) {
 	return id, err
 }
 
-func (s *Store) SubscribersOf(ctx context.Context, owner, name string) ([]string, error) {
-	id, err := s.GetRepo(ctx, owner, name)
+func (s *Store) MarkNotified(ctx context.Context, userID, repoID, githubIssueID int64) (bool, error) {
+	tag, err := s.pool.Exec(ctx,
+		`INSERT INTO notified (user_id, repo_id, github_issue_id) VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+		userID, repoID, githubIssueID)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT u.email
-  FROM subscriptions s
-  JOIN users u ON u.id = s.user_id
-  WHERE s.repo_id = $1`, id)
-	if err != nil {
-		return nil, err
-	}
-	var emails []string
-	for rows.Next() {
-		var email string
-		err = rows.Scan(&email)
-		if err != nil {
-			return nil, err
-		}
-		emails = append(emails, email)
-	}
-	return emails, rows.Err()
+	return tag.RowsAffected() == 1, nil
 }
