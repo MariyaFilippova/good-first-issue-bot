@@ -20,6 +20,14 @@ func (s *Store) GetUser(ctx context.Context, email string) (int64, error) {
 	return id, err
 }
 
+func (s *Store) AlreadyNotified(ctx context.Context, userID, githubIssueID int64) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM notified WHERE user_id = $1 AND github_issue_id = $2)`,
+		userID, githubIssueID).Scan(&exists)
+	return exists, err
+}
+
 func (s *Store) MarkNotified(ctx context.Context, userID, repoID, githubIssueID int64) (bool, error) {
 	tag, err := s.pool.Exec(ctx,
 		`INSERT INTO notified (user_id, repo_id, github_issue_id) VALUES ($1, $2, $3)
