@@ -2,13 +2,13 @@ package store
 
 import "context"
 
-func (s *Store) AddUser(ctx context.Context, email string) (int64, error) {
+func (s *Store) UpsertGitHubUser(ctx context.Context, githubID int64, email string) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO users (email) VALUES ($1)
-		 ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+		`INSERT INTO users (github_id, email) VALUES ($1, $2)
+		 ON CONFLICT (github_id) DO UPDATE SET email = EXCLUDED.email
 		 RETURNING id`,
-		email).Scan(&id)
+		githubID, email).Scan(&id)
 	return id, err
 }
 

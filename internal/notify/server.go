@@ -26,14 +26,6 @@ func Serve(ct context.Context, s *store.Store) error {
 		}
 	})
 
-	mux.HandleFunc("POST /user/{email}", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := s.AddUser(r.Context(), r.PathValue("email")); err != nil {
-			http.Error(w, "bad request", http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-	})
-
 	mux.HandleFunc("POST /repo", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Owner string `json:"owner"`

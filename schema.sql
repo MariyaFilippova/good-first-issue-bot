@@ -3,7 +3,8 @@
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id           BIGSERIAL PRIMARY KEY,    -- auto-incrementing internal id
-    email        TEXT UNIQUE NOT NULL,      -- where we send notifications
+    github_id    BIGINT NOT NULL UNIQUE,   -- GitHub's stable user id (from OAuth) — the identity
+    email        TEXT UNIQUE NOT NULL,     -- where we send notifications
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
