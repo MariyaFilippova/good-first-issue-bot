@@ -1,16 +1,12 @@
 package store
 
-import (
-	"context"
-	"time"
-)
+import "context"
 
 type Repo struct {
-	ID        int64
-	Owner     string
-	Name      string
-	ETag      *string    // nil = never fetched (SQL NULL)
-	HighWater *time.Time // nil = never polled (SQL NULL)
+	ID    int64
+	Owner string
+	Name  string
+	ETag  *string // nil = never fetched (SQL NULL)
 }
 
 func (s *Store) AddRepo(ctx context.Context, owner, name string) error {
@@ -45,20 +41,19 @@ func (s *Store) ListRepos(ctx context.Context) ([]Repo, error) {
 	return repos, rows.Err()
 }
 
-func (s *Store) UpdateRepoAfterPoll(ctx context.Context, repoID int64, etag *string, highWater *time.Time) error {
+func (s *Store) UpdateRepoAfterPoll(ctx context.Context, repoID int64, etag *string) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE repos
 		SET etag = COALESCE($2, etag),
-		    high_water = COALESCE($3, high_water),
 		    last_polled_at = now(),
 		    next_poll_at = now() + poll_interval
-		WHERE id = $1`, repoID, etag, highWater)
+		WHERE id = $1`, repoID, etag)
 	return err
 }
 
 func (s *Store) DueRepos(ctx context.Context, limit int) ([]Repo, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, owner, name, etag, high_water
+		SELECT id, owner, name, etag
 		FROM repos
 		WHERE next_poll_at <= now()
 		ORDER BY next_poll_at
@@ -71,7 +66,7 @@ func (s *Store) DueRepos(ctx context.Context, limit int) ([]Repo, error) {
 	var repos []Repo
 	for rows.Next() {
 		var r Repo
-		if err := rows.Scan(&r.ID, &r.Owner, &r.Name, &r.ETag, &r.HighWater); err != nil {
+		if err := rows.Scan(&r.ID, &r.Owner, &r.Name, &r.ETag); err != nil {
 			return nil, err
 		}
 		repos = append(repos, r)

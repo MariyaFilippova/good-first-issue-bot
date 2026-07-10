@@ -19,10 +19,6 @@ CREATE TABLE IF NOT EXISTS repos (
     -- If-None-Match lets a "nothing changed" reply be free (HTTP 304, no rate cost).
     etag           TEXT,
 
-    -- The newest issue updated_at we have already processed. We poll GitHub
-    -- with ?since=high_water so we only pull issues newer than this.
-    high_water     TIMESTAMPTZ,
-
     last_polled_at TIMESTAMPTZ,
     -- Adaptive polling: active repos get a short interval, quiet ones back off.
     poll_interval  INTERVAL NOT NULL DEFAULT INTERVAL '15 minutes',

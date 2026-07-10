@@ -14,7 +14,6 @@ type Issue struct {
 	Number      int       `json:"number"`
 	Title       string    `json:"title"`
 	HTMLURL     string    `json:"html_url"`
-	UpdatedAt   time.Time `json:"updated_at"`
 	Labels      []Label   `json:"labels"`
 	PullRequest *struct{} `json:"pull_request"`
 }
@@ -41,7 +40,7 @@ type FetchResult struct {
 	NotModified bool   // true when GitHub returned 304 Not Modified
 }
 
-func (c *Client) FetchIssues(ctx context.Context, owner, name, label string, etag *string, since *time.Time) (*FetchResult, error) {
+func (c *Client) FetchIssues(ctx context.Context, owner, name, label string, etag *string) (*FetchResult, error) {
 	endpoint := "https://api.github.com/repos/" + owner + "/" + name + "/issues"
 
 	q := url.Values{}
@@ -50,10 +49,6 @@ func (c *Client) FetchIssues(ctx context.Context, owner, name, label string, eta
 	q.Set("sort", "updated")
 	q.Set("direction", "desc")
 	q.Set("per_page", "100")
-
-	if since != nil {
-		q.Set("since", since.UTC().Format(time.RFC3339))
-	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+q.Encode(), nil)
 	if err != nil {
