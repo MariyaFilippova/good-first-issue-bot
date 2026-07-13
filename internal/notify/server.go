@@ -2,7 +2,8 @@ package notify
 
 import (
 	"context"
-	"html/template"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -11,46 +12,39 @@ import (
 	"awesomeProject/internal/store"
 )
 
-var homeTmpl = template.Must(template.New("home").Parse(homeHTML))
-
-type pageData struct {
-	LoggedIn bool
-	Repos    []store.Repo
-}
-
 func Serve(s *store.Store, a *auth.Auth, gh *github.Client) error {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		var data pageData
-		if userID, ok := a.CurrentUser(r); ok {
-			data.LoggedIn = true
-			repos, err := s.ListSubscribedRepos(r.Context(), userID)
-			if err != nil {
-				log.Println("ListSubscribedRepos:", err)
-				http.Error(w, "server error", http.StatusInternalServerError)
-				return
-			}
-			data.Repos = repos
-		}
-		if err := homeTmpl.Execute(w, data); err != nil {
-			log.Println("template:", err)
-		}
-	})
-
+	// GitHub OAuth flow.
 	mux.HandleFunc("GET /auth/login", a.HandleLogin)
 	mux.HandleFunc("GET /auth/callback", a.HandleCallback)
 	mux.HandleFunc("GET /logout", a.HandleLogout)
 
-	mux.HandleFunc("POST /subscribe", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/status", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := a.CurrentUser(r)
 		if !ok {
 			http.Error(w, "login required", http.StatusUnauthorized)
 			return
 		}
-		owner, name := r.FormValue("owner"), r.FormValue("name")
-		if owner == "" || name == "" {
-			http.Error(w, "owner and repo are required", http.StatusBadRequest)
+		owner, name := r.URL.Query().Get("owner"), r.URL.Query().Get("name")
+		subscribed, err := s.IsSubscribed(r.Context(), userID, owner, name)
+		if err != nil {
+			log.Println("IsSubscribed:", err)
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]bool{"subscribed": subscribed})
+	}))
+
+	mux.HandleFunc("/api/subscribe", withCORS(func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := a.CurrentUser(r)
+		if !ok {
+			http.Error(w, "login required", http.StatusUnauthorized)
+			return
+		}
+		owner, name, err := decodeRepo(r)
+		if err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
 		if err := s.Subscribe(r.Context(), userID, owner, name); err != nil {
@@ -58,30 +52,72 @@ func Serve(s *store.Store, a *auth.Auth, gh *github.Client) error {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
-		// Mark the repo's CURRENT issues as already-seen for this user, so they
-		// only get issues that appear AFTER subscribing (no backlog flood).
-		// Best-effort: a failure just means they might get the backlog once.
+		// Seed so the user only gets FUTURE issues, not the current backlog.
 		if err := seedNotified(r.Context(), gh, s, userID, owner, name); err != nil {
 			log.Println("seedNotified:", err)
 		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
+		writeJSON(w, map[string]bool{"subscribed": true})
+	}))
 
-	mux.HandleFunc("POST /unsubscribe", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/unsubscribe", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := a.CurrentUser(r)
 		if !ok {
 			http.Error(w, "login required", http.StatusUnauthorized)
 			return
 		}
-		if err := s.Unsubscribe(r.Context(), userID, r.FormValue("owner"), r.FormValue("name")); err != nil {
+		owner, name, err := decodeRepo(r)
+		if err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := s.Unsubscribe(r.Context(), userID, owner, name); err != nil {
 			log.Println("Unsubscribe:", err)
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
+		writeJSON(w, map[string]bool{"subscribed": false})
+	}))
 
 	return http.ListenAndServe(":8080", mux)
+}
+
+// decodeRepo reads {"owner":"...","name":"..."} from a JSON request body.
+func decodeRepo(r *http.Request) (string, string, error) {
+	var body struct {
+		Owner string `json:"owner"`
+		Name  string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return "", "", err
+	}
+	if body.Owner == "" || body.Name == "" {
+		return "", "", fmt.Errorf("owner and name required")
+	}
+	return body.Owner, body.Name, nil
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
+}
+
+// withCORS reflects the request Origin and allows credentials, so the extension
+// can call these endpoints with cookies. It also answers CORS preflight (OPTIONS).
+func withCORS(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Vary", "Origin")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h(w, r)
+	}
 }
 
 func seedNotified(ctx context.Context, gh *github.Client, s *store.Store, userID int64, owner, name string) error {
@@ -103,40 +139,3 @@ func seedNotified(ctx context.Context, gh *github.Client, s *store.Store, userID
 	}
 	return nil
 }
-
-const homeHTML = `<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Good First Issue Bot</title></head>
-<body style="font-family: system-ui, sans-serif; max-width: 640px; margin: 48px auto; line-height: 1.5;">
-  <h1>🔔 Good First Issue Bot</h1>
-  {{if .LoggedIn}}
-    <p>You're logged in. <a href="/logout">Log out</a></p>
-
-    <h2>Subscribe to a repo</h2>
-    <form method="POST" action="/subscribe">
-      <input name="owner" placeholder="owner (e.g. golang)" required>
-      <input name="name" placeholder="repo (e.g. go)" required>
-      <button type="submit">Subscribe</button>
-    </form>
-
-    <h2>Your subscriptions</h2>
-    <ul>
-      {{range .Repos}}
-        <li>
-          {{.Owner}}/{{.Name}}
-          <form method="POST" action="/unsubscribe" style="display:inline">
-            <input type="hidden" name="owner" value="{{.Owner}}">
-            <input type="hidden" name="name" value="{{.Name}}">
-            <button type="submit">unsubscribe</button>
-          </form>
-        </li>
-      {{else}}
-        <li>No subscriptions yet.</li>
-      {{end}}
-    </ul>
-  {{else}}
-    <p>Get notified about new “good first issue”s in the repos you follow.</p>
-    <p><a href="/auth/login"><button>Login with GitHub</button></a></p>
-  {{end}}
-</body>
-</html>`

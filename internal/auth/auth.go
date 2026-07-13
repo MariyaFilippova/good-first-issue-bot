@@ -93,7 +93,8 @@ func (a *Auth) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteNoneMode,
 		MaxAge:   86400,
 	})
-	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, `<p>✅ Logged in. You can close this tab and use the browser extension.</p>`)
 }
 
 func (a *Auth) CurrentUser(r *http.Request) (int64, bool) {
