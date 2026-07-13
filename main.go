@@ -40,8 +40,9 @@ func main() {
 	st := store.NewStore(pool)
 	gh := github.NewClient(token)
 	a := auth.New(st, clientID, clientSecret, "http://localhost:8080/auth/callback")
+	mailer := notify.NewMailer(os.Getenv("RESEND_API_KEY"), os.Getenv("RESEND_FROM"))
 
-	go pollLoop(ctx, st, gh)
+	go pollLoop(ctx, st, gh, mailer)
 
 	log.Println("server listening on :8080")
 	if err := notify.Serve(ctx, st, a); err != nil {
@@ -50,16 +51,16 @@ func main() {
 }
 
 // pollLoop runs one poll pass every 30 seconds, forever.
-func pollLoop(ctx context.Context, st *store.Store, gh *github.Client) {
+func pollLoop(ctx context.Context, st *store.Store, gh *github.Client, mailer *notify.Mailer) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
-		poll(ctx, st, gh)
+		poll(ctx, st, gh, mailer)
 		<-ticker.C
 	}
 }
 
-func poll(ctx context.Context, st *store.Store, gh *github.Client) {
+func poll(ctx context.Context, st *store.Store, gh *github.Client, mailer *notify.Mailer) {
 	due, err := st.DueRepos(ctx, 100)
 	if err != nil {
 		log.Println("DueRepos:", err)
@@ -80,7 +81,7 @@ func poll(ctx context.Context, st *store.Store, gh *github.Client) {
 			continue
 		}
 
-		if err := notify.Notify(ctx, st, repo, res.Issues); err != nil {
+		if err := mailer.Notify(ctx, st, repo, res.Issues); err != nil {
 			log.Println("Notify:", err)
 		}
 

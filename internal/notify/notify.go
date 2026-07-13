@@ -17,12 +17,7 @@ func buildMessage(issues []github.Issue, repo store.Repo) string {
 	return buffer.String()
 }
 
-func send(email, msg string) error {
-	fmt.Printf("=== TO %s ===\n%s\n", email, msg)
-	return nil
-}
-
-func Notify(ctx context.Context, st *store.Store, repo store.Repo, issues []github.Issue) error {
+func (m *Mailer) Notify(ctx context.Context, st *store.Store, repo store.Repo, issues []github.Issue) error {
 	subs, err := st.ListSubscribersForRepo(ctx, repo.ID)
 	if err != nil {
 		return err
@@ -47,7 +42,8 @@ func Notify(ctx context.Context, st *store.Store, repo store.Repo, issues []gith
 			continue
 		}
 
-		if err := send(sub.Email, buildMessage(fresh, repo)); err != nil {
+		subject := fmt.Sprintf("New good first issues in %s/%s", repo.Owner, repo.Name)
+		if err := m.Send(ctx, sub.Email, subject, buildMessage(fresh, repo)); err != nil {
 			return err
 		}
 
