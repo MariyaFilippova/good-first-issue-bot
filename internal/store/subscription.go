@@ -16,6 +16,17 @@ func (s *Store) Subscribe(ctx context.Context, userID int64, owner, name string)
 	return err
 }
 
+func (s *Store) IsSubscribed(ctx context.Context, userID int64, owner, name string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM subscriptions sub
+			JOIN repos r ON r.id = sub.repo_id
+			WHERE sub.user_id = $1 AND r.owner = $2 AND r.name = $3)`,
+		userID, owner, name).Scan(&exists)
+	return exists, err
+}
+
 func (s *Store) Unsubscribe(ctx context.Context, userID int64, owner, name string) error {
 	repoID, err := s.GetRepo(ctx, owner, name)
 	if err != nil {
