@@ -87,6 +87,10 @@ func (a *Auth) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    sid,
 		Path:     "/",
 		HttpOnly: true,
+		// SameSite=None + Secure lets the browser extension send this cookie on
+		// its cross-origin API calls. (Chrome allows Secure cookies on localhost.)
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
 		MaxAge:   86400,
 	})
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
