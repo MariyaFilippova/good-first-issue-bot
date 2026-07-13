@@ -3,10 +3,10 @@ package store
 import "context"
 
 type Repo struct {
-	ID    int64
-	Owner string
-	Name  string
-	ETag  *string // nil = never fetched (SQL NULL)
+	ID    int64   `json:"-"`
+	Owner string  `json:"owner"`
+	Name  string  `json:"name"`
+	ETag  *string `json:"-"` // nil = never fetched (SQL NULL)
 }
 
 func (s *Store) AddRepo(ctx context.Context, owner, name string) error {
