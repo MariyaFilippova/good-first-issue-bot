@@ -36,6 +36,24 @@ func Serve(s *store.Store, a *auth.Auth, gh *github.Client) error {
 		writeJSON(w, map[string]bool{"subscribed": subscribed})
 	}))
 
+	mux.HandleFunc("/api/subscriptions", withCORS(func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := a.CurrentUser(r)
+		if !ok {
+			http.Error(w, "login required", http.StatusUnauthorized)
+			return
+		}
+		repos, err := s.ListSubscribedRepos(r.Context(), userID)
+		if err != nil {
+			log.Println("ListSubscribedRepos:", err)
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		if repos == nil {
+			repos = []store.Repo{} // send [] not null when empty
+		}
+		writeJSON(w, repos)
+	}))
+
 	mux.HandleFunc("/api/subscribe", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := a.CurrentUser(r)
 		if !ok {

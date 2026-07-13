@@ -22,6 +22,14 @@ async function handle(msg) {
     return { loggedIn: true, subscribed: j.subscribed };
   }
 
+  if (msg.type === "subscriptions") {
+    const r = await fetch(BACKEND + "/api/subscriptions", { credentials: "include" });
+    if (r.status === 401) return { loggedIn: false };
+    if (!r.ok) throw new Error("status " + r.status);
+    const repos = await r.json();
+    return { loggedIn: true, repos: repos || [] };
+  }
+
   if (msg.type === "subscribe" || msg.type === "unsubscribe") {
     const r = await fetch(BACKEND + "/api/" + msg.type, {
       method: "POST",
