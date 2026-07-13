@@ -100,6 +100,17 @@ func (a *Auth) CurrentUser(r *http.Request) (int64, bool) {
 	return a.sessions.User(c.Value)
 }
 
+func (a *Auth) HandleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1, // delete now
+	})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 type githubUser struct {
 	ID    int64  `json:"id"`
 	Login string `json:"login"`
