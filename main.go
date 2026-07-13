@@ -45,7 +45,7 @@ func main() {
 	go pollLoop(ctx, st, gh, mailer)
 
 	log.Println("server listening on :8080")
-	if err := notify.Serve(ctx, st, a); err != nil {
+	if err := notify.Serve(st, a, gh); err != nil {
 		log.Fatal("server: ", err)
 	}
 }
