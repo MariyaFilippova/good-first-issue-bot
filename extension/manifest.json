@@ -3,7 +3,7 @@
   "name": "Good First Issue Subscriber",
   "version": "0.2.0",
   "description": "One-click subscribe/unsubscribe to good-first-issue notifications for the GitHub repo you're viewing.",
-  "host_permissions": ["http://localhost:8080/*"],
+  "host_permissions": ["https://gfibot.com/*"],
   "background": {
     "service_worker": "background.js"
   },

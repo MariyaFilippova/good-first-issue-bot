@@ -37,9 +37,14 @@ func main() {
 		log.Fatal("set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET")
 	}
 
+	callbackURL := os.Getenv("OAUTH_CALLBACK_URL")
+	if callbackURL == "" {
+		callbackURL = "http://localhost:8080/auth/callback"
+	}
+
 	st := store.NewStore(pool)
 	gh := github.NewClient(token)
-	a := auth.New(st, clientID, clientSecret, "http://localhost:8080/auth/callback")
+	a := auth.New(st, clientID, clientSecret, callbackURL)
 	mailer := notify.NewMailer(os.Getenv("RESEND_API_KEY"), os.Getenv("RESEND_FROM"))
 
 	go pollLoop(ctx, st, gh, mailer)

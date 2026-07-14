@@ -1,4 +1,4 @@
-const BACKEND = "http://localhost:8080";
+const BACKEND = "https://gfibot.com";
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   handle(msg)

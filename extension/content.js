@@ -1,5 +1,5 @@
 (function () {
-  const BACKEND = "http://localhost:8080";
+  const BACKEND = "https://gfibot.com";
 
   const RESERVED = new Set([
     "settings", "notifications", "orgs", "marketplace", "explore", "topics",
