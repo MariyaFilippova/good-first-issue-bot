@@ -6,6 +6,8 @@ GFI Bot watches the GitHub repositories you care about and notifies you by email
 soon as a new `good first issue` is opened. Subscribe in one click with the Chrome extension.
 
 ---
+<img width="1228" height="941" alt="Screenshot 2026-07-14 at 13 59 58" src="https://github.com/user-attachments/assets/a96b4c2b-c0b9-4a53-b724-9ff531b93169" />
+<img width="1227" height="941" alt="Screenshot 2026-07-14 at 14 00 42" src="https://github.com/user-attachments/assets/5c77b301-322c-41fd-b60c-0d00c923c832" />
 
 ## Install
 
