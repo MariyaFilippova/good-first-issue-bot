@@ -15,9 +15,10 @@ import (
 )
 
 func main() {
-	// Load a .env file into the environment if present. Ignore the error: in
-	// production there's no .env — the vars are set by the platform instead.
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+		return
+	}
 
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
@@ -45,9 +46,10 @@ func main() {
 	st := store.NewStore(pool)
 	gh := github.NewClient(token)
 	a := auth.New(st, clientID, clientSecret, callbackURL)
-	mailer := notify.NewMailer(os.Getenv("RESEND_API_KEY"), os.Getenv("RESEND_FROM"))
+	notifier := notify.NewNotifier()
 
-	go pollLoop(ctx, st, gh, mailer)
+	go notifier.Start(ctx, st, 5)
+	go pollLoop(ctx, st, gh, notifier)
 
 	log.Println("server listening on :8080")
 	if err := notify.Serve(st, a, gh); err != nil {
@@ -56,16 +58,16 @@ func main() {
 }
 
 // pollLoop runs one poll pass every 30 seconds, forever.
-func pollLoop(ctx context.Context, st *store.Store, gh *github.Client, mailer *notify.Mailer) {
+func pollLoop(ctx context.Context, st *store.Store, gh *github.Client, notifier *notify.Notifier) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
-		poll(ctx, st, gh, mailer)
+		poll(ctx, st, gh, notifier)
 		<-ticker.C
 	}
 }
 
-func poll(ctx context.Context, st *store.Store, gh *github.Client, mailer *notify.Mailer) {
+func poll(ctx context.Context, st *store.Store, gh *github.Client, notifier *notify.Notifier) {
 	due, err := st.DueRepos(ctx, 100)
 	if err != nil {
 		log.Println("DueRepos:", err)
@@ -86,7 +88,7 @@ func poll(ctx context.Context, st *store.Store, gh *github.Client, mailer *notif
 			continue
 		}
 
-		if err := mailer.Notify(ctx, st, repo, res.Issues); err != nil {
+		if err := notifier.Notify(ctx, st, repo, res.Issues); err != nil {
 			log.Println("Notify:", err)
 		}
 
