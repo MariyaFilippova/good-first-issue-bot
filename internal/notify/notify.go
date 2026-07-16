@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 )
 
 func buildMessage(issues []github.Issue, repo store.Repo) string {
@@ -44,7 +45,8 @@ func (m *Mailer) Notify(ctx context.Context, st *store.Store, repo store.Repo, i
 
 		subject := fmt.Sprintf("New good first issues in %s/%s", repo.Owner, repo.Name)
 		if err := m.Send(ctx, sub.Email, subject, buildMessage(fresh, repo)); err != nil {
-			return err
+			log.Printf("notify %s about %s/%s: %v", sub.Email, repo.Owner, repo.Name, err)
+			continue
 		}
 
 		for _, issue := range fresh {
