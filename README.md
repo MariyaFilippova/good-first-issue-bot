@@ -19,26 +19,6 @@ Add the extension from the Chrome Web Store:
 
 Then click the extension button on any GitHub repository page to subscribe.
 
-## Features
-- 🔔 **Email alerts** for new `good first issue` tickets on repos you follow
-- 🖱️ **One-click subscribe/unsubscribe** via the Chrome extension, right from any GitHub repo page
-- 🔑 **Sign in with GitHub** (OAuth) to manage your subscriptions
-- ⚡ **Efficient polling** - uses GitHub ETags/conditional requests so unchanged repos cost no rate limit
-
-## How it works
-
-```
-Chrome extension ─┐
-                  ├─► HTTP API (Go) ─► PostgreSQL
-Sign in w/ GitHub ┘        │
-                           └─► background poller ─► GitHub API ─► email (Resend)
-```
-
-A background poller checks each subscribed repo on its own schedule, fetches new
-good-first-issues from the GitHub API, and emails subscribers via
-[Resend](https://resend.com). State (users, repos, subscriptions, sent
-notifications) lives in PostgreSQL.
-
 ## Tech stack
 
 - **Go** - HTTP server + background poller (single static binary)
