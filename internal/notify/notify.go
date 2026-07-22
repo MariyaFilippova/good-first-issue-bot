@@ -75,18 +75,31 @@ func (n *Notifier) Notify(ctx context.Context, st *store.Store, repo store.Repo,
 		return err
 	}
 
+	var candidates []github.Issue
+	issueIDs := make([]int64, 0, len(issues))
+	for _, issue := range issues {
+		if issue.PullRequest != nil {
+			continue
+		}
+		candidates = append(candidates, issue)
+		issueIDs = append(issueIDs, issue.Id)
+	}
+
+	userIDs := make([]int64, len(subs))
+	for i, sub := range subs {
+		userIDs[i] = sub.ID
+	}
+
+	notified, err := st.NotifiedIssueIDs(ctx, userIDs, issueIDs)
+	if err != nil {
+		return err
+	}
+
 	for _, sub := range subs {
+		seen := notified[sub.ID]
 		var fresh []github.Issue
-		for _, issue := range issues {
-			if issue.PullRequest != nil {
-				continue
-			}
-			already, err := st.AlreadyNotified(ctx, sub.ID, issue.Id)
-			if err != nil {
-				log.Printf("error checking if issue %d was already notified: %s", issue.Id, err.Error())
-				continue
-			}
-			if !already {
+		for _, issue := range candidates {
+			if !seen[issue.Id] {
 				fresh = append(fresh, issue)
 			}
 		}
