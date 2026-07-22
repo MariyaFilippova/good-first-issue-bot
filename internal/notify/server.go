@@ -12,8 +12,15 @@ import (
 	"awesomeProject/internal/store"
 )
 
-func Serve(s *store.Store, a *auth.Auth, gh *github.Client) error {
+func Serve(s *store.Store, a *auth.Auth, gh *github.Client, landing []byte) error {
 	mux := http.NewServeMux()
+
+	// Landing page. {$} matches only the exact "/" path, so it doesn't swallow
+	// unknown routes as a catch-all.
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(landing)
+	})
 
 	// GitHub OAuth flow.
 	mux.HandleFunc("GET /auth/login", a.HandleLogin)

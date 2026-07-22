@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"log"
 	"os"
 	"time"
@@ -13,6 +14,9 @@ import (
 
 	"github.com/joho/godotenv"
 )
+
+//go:embed index.html
+var landingHTML []byte
 
 func main() {
 	if err := godotenv.Load(); err != nil {
@@ -52,7 +56,7 @@ func main() {
 	go pollLoop(ctx, st, gh, notifier)
 
 	log.Println("server listening on :8080")
-	if err := notify.Serve(st, a, gh); err != nil {
+	if err := notify.Serve(st, a, gh, landingHTML); err != nil {
 		log.Fatal("server: ", err)
 	}
 }

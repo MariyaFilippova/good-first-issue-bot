@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GFI Bot — Never miss a good first issue</title>
+<meta name="description" content="GFI Bot emails you the instant a new good first issue opens on the GitHub repos you follow. Free Chrome extension for open-source contributors.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B1%3C/text%3E%3C/svg%3E">
+
+<!-- Open Graph / social preview -->
+<meta property="og:title" content="GFI Bot — Never miss a good first issue">
+<meta property="og:description" content="Get emailed the instant a new good first issue opens on the repos you follow.">
+<meta property="og:type" content="website">
+
+<style>
+  :root {
+    --ground: #fbfbfe;
+    --surface: #ffffff;
+    --surface-2: #f5f4fb;
+    --border: #e6e4f1;
+    --border-strong: #d7d4e8;
+    --ink: #17152a;
+    --ink-soft: #423e5c;
+    --muted: #6f6b88;
+    --accent: #7057ff;      /* the authentic "good first issue" label color */
+    --accent-ink: #ffffff;
+    --accent-soft: #efecff;
+    --accent-line: #d9d2ff;
+    --go: #1f9d4d;
+    --go-soft: #e4f6ea;
+    --shadow-lg: 0 1px 2px rgba(23,21,42,.05), 0 40px 80px -32px rgba(112,87,255,.28);
+    --radius: 14px;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --grid-cell: #e7e5f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #100f1a; --surface: #191826; --surface-2: #201f30; --border: #2b2942;
+      --border-strong: #3a3757; --ink: #ecebf6; --ink-soft: #c3c0d8; --muted: #918da9;
+      --accent: #9484ff; --accent-ink: #12111c; --accent-soft: #221f3d; --accent-line: #3d386a;
+      --go: #3fb968; --go-soft: #16281d; --grid-cell: #26243a;
+      --shadow-lg: 0 1px 2px rgba(0,0,0,.5), 0 44px 90px -32px rgba(148,132,255,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #fbfbfe; --surface: #ffffff; --surface-2: #f5f4fb; --border: #e6e4f1;
+    --border-strong: #d7d4e8; --ink: #17152a; --ink-soft: #423e5c; --muted: #6f6b88;
+    --accent: #7057ff; --accent-ink: #ffffff; --accent-soft: #efecff; --accent-line: #d9d2ff;
+    --go: #1f9d4d; --go-soft: #e4f6ea; --grid-cell: #e7e5f0;
+    --shadow-lg: 0 1px 2px rgba(23,21,42,.05), 0 40px 80px -32px rgba(112,87,255,.28);
+  }
+  :root[data-theme="dark"] {
+    --ground: #100f1a; --surface: #191826; --surface-2: #201f30; --border: #2b2942;
+    --border-strong: #3a3757; --ink: #ecebf6; --ink-soft: #c3c0d8; --muted: #918da9;
+    --accent: #9484ff; --accent-ink: #12111c; --accent-soft: #221f3d; --accent-line: #3d386a;
+    --go: #3fb968; --go-soft: #16281d; --grid-cell: #26243a;
+    --shadow-lg: 0 1px 2px rgba(0,0,0,.5), 0 44px 90px -32px rgba(148,132,255,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 17px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    min-height: 100dvh; display: flex; flex-direction: column;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
+
+  /* brand mark, top-left */
+  .top { position: relative; z-index: 2; padding: 26px 28px; }
+  .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: -.01em; }
+  .logomark {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--go)));
+    display: grid; place-items: center; flex: none;
+    box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  .logomark::after {
+    content: ""; width: 8px; height: 8px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--go) 90%, #fff);
+  }
+
+  main {
+    flex: 1; position: relative; overflow: hidden;
+    display: grid; grid-template-columns: 1.02fr .98fr; gap: 60px; align-items: center;
+    width: 100%; max-width: 1080px; margin: 0 auto; padding: 20px 28px 64px;
+  }
+
+  /* ambient contribution grid */
+  .contrib {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    display: grid; grid-template-columns: repeat(auto-fill, 15px); grid-auto-rows: 15px; gap: 5px;
+    opacity: .5; padding: 16px;
+    -webkit-mask-image: radial-gradient(120% 95% at 85% 8%, #000 0%, transparent 60%);
+    mask-image: radial-gradient(120% 95% at 85% 8%, #000 0%, transparent 60%);
+  }
+  .contrib i { border-radius: 3px; background: var(--grid-cell); }
+  .contrib i.g1 { background: color-mix(in srgb, var(--go) 32%, var(--grid-cell)); }
+  .contrib i.g2 { background: color-mix(in srgb, var(--go) 60%, var(--grid-cell)); }
+  .contrib i.g3 { background: var(--go); }
+
+  .copy { position: relative; z-index: 1; }
+  .eyebrow {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--accent); font-weight: 600;
+  }
+  h1 {
+    font-size: clamp(2.6rem, 5.8vw, 4.3rem); line-height: 1.02; letter-spacing: -.035em;
+    font-weight: 800; margin: 20px 0 0; text-wrap: balance;
+  }
+  h1 .hl { color: var(--accent); white-space: nowrap; }
+  .lede { font-size: 1.2rem; line-height: 1.55; color: var(--ink-soft); margin: 22px 0 0; max-width: 36ch; }
+  .lede code {
+    font-family: var(--mono); font-size: .84em; padding: 2px 7px; border-radius: 6px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); white-space: nowrap;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; font-family: var(--sans);
+    font-size: 1.02rem; font-weight: 600; padding: 15px 26px; border-radius: 12px; cursor: pointer;
+    border: 1px solid transparent; background: var(--accent); color: var(--accent-ink);
+    box-shadow: var(--shadow-lg); margin-top: 36px;
+    transition: transform .15s ease, box-shadow .2s ease;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(23,21,42,.05), 0 48px 90px -30px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .btn svg { width: 19px; height: 19px; }
+
+  .trust {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 22px;
+    font-family: var(--mono); font-size: .78rem; color: var(--muted);
+  }
+  .trust span { display: inline-flex; align-items: center; gap: 7px; }
+  .trust .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--go); }
+
+  /* the notification moment */
+  .stage { position: relative; z-index: 1; min-height: 360px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+  .issue-card { padding: 20px 22px; position: relative; z-index: 2; animation: cardIn .7s cubic-bezier(.2,.8,.2,1) both; }
+  .repo-line { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: .82rem; color: var(--muted); }
+  .repo-line .ava { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg,#57606a,#2f363d); flex: none; }
+  .repo-line b { color: var(--ink-soft); font-weight: 600; }
+  .issue-head { display: flex; gap: 12px; margin-top: 14px; align-items: flex-start; }
+  .issue-open { flex: none; margin-top: 2px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--go); display: grid; place-items: center; }
+  .issue-open::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--go); }
+  .issue-title { font-size: 1.08rem; font-weight: 650; line-height: 1.35; letter-spacing: -.01em; }
+  .issue-meta { font-family: var(--mono); font-size: .74rem; color: var(--muted); margin-top: 5px; }
+  .labels { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .label {
+    font-family: var(--mono); font-size: .72rem; font-weight: 600; padding: 4px 11px 4px 9px;
+    border-radius: 999px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid;
+  }
+  .label .ldot { width: 8px; height: 8px; border-radius: 50%; }
+  .label.gfi { color: #fff; background: var(--accent); border-color: color-mix(in srgb, var(--accent) 70%, #000); }
+  .label.gfi .ldot { background: #fff; }
+  .label.plain { color: var(--ink-soft); background: var(--surface-2); border-color: var(--border-strong); }
+  .label.plain .ldot { background: #4c9be8; }
+  .label.gfi.glow { animation: labelGlow 2.6s ease-in-out .9s infinite; }
+
+  .toast {
+    position: absolute; left: 26px; right: -14px; bottom: -26px; z-index: 3;
+    display: flex; align-items: center; gap: 14px; padding: 15px 17px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 13px; box-shadow: var(--shadow-lg);
+    animation: toastIn .8s cubic-bezier(.2,.8,.2,1) 1.15s both;
+  }
+  .toast .env { width: 40px; height: 40px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--go-soft); color: var(--go); }
+  .toast .env svg { width: 21px; height: 21px; }
+  .toast .t-title { font-size: .92rem; font-weight: 650; letter-spacing: -.01em; }
+  .toast .t-sub { font-family: var(--mono); font-size: .72rem; color: var(--muted); margin-top: 2px; }
+  .toast .t-pill {
+    margin-left: auto; flex: none; font-family: var(--mono); font-size: .66rem; font-weight: 600;
+    color: var(--go); background: var(--go-soft); padding: 4px 9px; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--go) 30%, transparent);
+  }
+
+  @keyframes cardIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes labelGlow {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+    50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
+  }
+
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; gap: 64px; padding-top: 8px; padding-bottom: 72px; align-content: center; }
+    .stage { max-width: 440px; }
+    .lede { max-width: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .issue-card, .toast, .label.gfi.glow { animation: none !important; }
+    .btn:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="brand" href="#" aria-label="GFI Bot">
+    <span class="logomark" aria-hidden="true"></span>
+    <span>GFI&nbsp;Bot</span>
+  </a>
+</div>
+
+<main>
+  <div class="contrib" id="contrib" aria-hidden="true"></div>
+
+  <div class="copy">
+    <span class="eyebrow">Chrome extension · for open-source contributors</span>
+    <h1>Never miss a <span class="hl">good first issue</span>.</h1>
+    <p class="lede">GFI&nbsp;Bot emails you the instant a new <code>good first issue</code> opens on the repos you follow.</p>
+    <a class="btn" href="https://chromewebstore.google.com/detail/good-first-issue-subscrib/lpaepaloljaebdgnhnimnbpgadedkmpl" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+      Add to Chrome
+    </a>
+    <div class="trust">
+      <span><i class="dot"></i> Free</span>
+      <span><i class="dot"></i> Sign in with GitHub</span>
+      <span><i class="dot"></i> Unsubscribe anytime</span>
+    </div>
+  </div>
+
+  <div class="stage" aria-hidden="true">
+    <div class="card issue-card">
+      <div class="repo-line"><span class="ava"></span> <b>facebook/react</b> · just now</div>
+      <div class="issue-head">
+        <span class="issue-open"></span>
+        <div>
+          <div class="issue-title">Improve the error message for an invalid hook call</div>
+          <div class="issue-meta">#28418 opened by @maintainer</div>
+        </div>
+      </div>
+      <div class="labels">
+        <span class="label gfi glow"><span class="ldot"></span> good first issue</span>
+        <span class="label plain"><span class="ldot"></span> documentation</span>
+      </div>
+    </div>
+    <div class="toast">
+      <span class="env"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>
+      <div>
+        <div class="t-title">New good first issue</div>
+        <div class="t-sub">facebook/react · 1 new issue</div>
+      </div>
+      <span class="t-pill">inbox</span>
+    </div>
+  </div>
+</main>
+
+<script>
+  (function () {
+    var host = document.getElementById('contrib');
+    if (!host) return;
+    var cols = Math.ceil(window.innerWidth / 20) + 2;
+    var total = cols * 8;
+    var frag = document.createDocumentFragment();
+    for (var k = 0; k < total; k++) {
+      var cell = document.createElement('i');
+      var r = Math.random();
+      if (r > 0.90) cell.className = 'g3';
+      else if (r > 0.80) cell.className = 'g2';
+      else if (r > 0.66) cell.className = 'g1';
+      frag.appendChild(cell);
+    }
+    host.appendChild(frag);
+  })();
+</script>
+
+</body>
+</html>
